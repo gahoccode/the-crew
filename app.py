@@ -13,7 +13,7 @@ import pandas as pd
 from vnstock import Vnstock
 
 from crewai import Agent, Task, Crew, Process
-from crewai_tools import CodeInterpreterTool
+from crewai_tools import CodeInterpreterTool, BraveSearchTool
 from crewai.llm import LLM
 
 # Suppress warnings
@@ -41,6 +41,7 @@ class FinancialDataAnalyst:
         
         # Initialize tools
         self.code_interpreter = CodeInterpreterTool()
+        self.brave_search = BraveSearchTool(n_results=3)
         
         # Initialize LLM
         self.llm = LLM(
@@ -48,8 +49,9 @@ class FinancialDataAnalyst:
             api_key=self.openai_api_key
         )
         
-        # Create the data analyst agent
+        # Create agents
         self.data_analyst_agent = self._create_data_analyst_agent()
+        self.news_research_agent = self._create_news_research_agent()
     
     def _create_data_analyst_agent(self) -> Agent:
         """
@@ -67,6 +69,28 @@ class FinancialDataAnalyst:
             tools=[self.code_interpreter],
             llm=self.llm,
             allow_code_execution=True,
+            verbose=True,
+            max_iter=2,
+            memory=True,
+            reasoning=True,
+            max_reasoning_attempts=2
+        )
+    
+    def _create_news_research_agent(self) -> Agent:
+        """
+        Create a news research agent that searches for recent company news.
+        
+        Returns:
+            Agent: Configured news research agent
+        """
+        return Agent(
+            role="Financial News Research Analyst",
+            goal="Research and analyze recent news about Vietnamese companies to provide market intelligence",
+            backstory="You are an expert financial news analyst specializing in Vietnamese market research. "
+                     "You excel at finding relevant company news, management commentary, and strategic developments. "
+                     "You focus on future plans, investment announcements, and executive insights that impact stock performance.",
+            tools=[self.brave_search],
+            llm=self.llm,
             verbose=True,
             max_iter=2,
             memory=True,
@@ -317,21 +341,79 @@ class FinancialDataAnalyst:
         }
         
         return Task(
-            description=task_descriptions.get(analysis_type, task_descriptions["comprehensive"]),
-            expected_output=f"""
-            A comprehensive financial analysis report for {stock_symbol} including:
-            - Executive summary with key findings
-            - Detailed financial metrics analysis
-            - Professional visualizations and charts
-            - Actionable investment insights and recommendations
-            - All code used for analysis should be included and executable
-            """,
-            agent=self.data_analyst_agent,
+            description=task_descriptions[analysis_type],
+            expected_output="Comprehensive financial analysis report with numerical insights and data-driven recommendations",
+            agent=self.data_analyst_agent
+        )
+    
+    def create_news_research_task(self, stock_symbol: str) -> Task:
+        """
+        Create a news research task for gathering recent company news.
+        
+        Args:
+            stock_symbol: Stock symbol to research
+            
+        Returns:
+            Task: Configured news research task
+        """
+        # Get company name mapping for better search results
+        company_names = {
+            "REE": "Refrigeration Electrical Engineering Corporation",
+            "VIC": "Vingroup Joint Stock Company",
+            "VHM": "Vinhomes Joint Stock Company",
+            "VCB": "Vietcombank",
+            "HPG": "Hoa Phat Group"
+        }
+        
+        company_name = company_names.get(stock_symbol, stock_symbol)
+        
+        task_description = f"""
+        Research recent news and developments about {company_name} ({stock_symbol}) focusing on:
+        
+        1. **Future Plans & Strategy**:
+           - Search for: "{company_name} future plans 2024 2025"
+           - Search for: "{stock_symbol} strategic development Vietnam"
+           - Look for expansion plans, new projects, strategic initiatives
+        
+        2. **Recent Investments & Projects**:
+           - Search for: "{company_name} investment projects Vietnam"
+           - Search for: "{stock_symbol} new investments acquisitions"
+           - Find information about capital expenditure, new ventures, partnerships
+        
+        3. **Management Commentary & Performance Views**:
+           - Search for: "{company_name} CEO management outlook Vietnam"
+           - Search for: "{stock_symbol} earnings call management commentary"
+           - Look for executive statements, performance assessments, market outlook
+        
+        4. **Recent Financial News**:
+           - Search for: "{company_name} financial results Vietnam stock"
+           - Search for: "{stock_symbol} quarterly earnings Vietnam"
+           - Find recent financial announcements, analyst coverage, market reactions
+        
+        **Search Instructions**:
+        - Use multiple search queries to gather comprehensive information
+        - Focus on news from the last 6-12 months
+        - Prioritize Vietnamese financial news sources and official company announcements
+        - Look for both Vietnamese and English language sources
+        - Summarize key findings with dates and sources
+        
+        **Output Requirements**:
+        - Organize findings by the 4 categories above
+        - Include publication dates and source URLs when available
+        - Highlight the most significant developments
+        - Provide a summary of overall market sentiment
+        - Focus on information that could impact stock performance
+        """
+        
+        return Task(
+            description=task_description,
+            expected_output="Comprehensive news research report organized by categories with sources and dates",
+            agent=self.news_research_agent
         )
     
     def run_analysis(self, stock_symbol: str, analysis_type: str = "comprehensive") -> str:
         """
-        Run the financial analysis for a given stock.
+        Run the financial analysis and news research for a given stock.
         
         Args:
             stock_symbol: Stock symbol to analyze
@@ -341,25 +423,27 @@ class FinancialDataAnalyst:
             str: Analysis results
         """
         try:
-            # Create the analysis task
+            # Create tasks
             analysis_task = self.create_analysis_task(stock_symbol, analysis_type)
+            news_task = self.create_news_research_task(stock_symbol)
             
-            # Create and run the crew
+            # Create and run the crew with both agents
             crew = Crew(
-                agents=[self.data_analyst_agent],
-                tasks=[analysis_task],
+                agents=[self.data_analyst_agent, self.news_research_agent],
+                tasks=[analysis_task, news_task],
                 process=Process.sequential,
                 verbose=True,
                 memory=True
             )
             
-            print(f"🚀 Starting financial analysis for {stock_symbol}...")
+            print(f"🚀 Starting financial analysis and news research for {stock_symbol}...")
             result = crew.kickoff()
             
-            print(f"✅ Analysis completed for {stock_symbol}")
+            print(f"✅ Analysis and news research completed for {stock_symbol}")
             
-            # Export findings to report.md
-            self._export_to_report(stock_symbol, analysis_type, result)
+            # Export findings to separate files
+            self._export_to_report(stock_symbol, analysis_type, result.tasks_output[0])
+            self._export_to_news(stock_symbol, result.tasks_output[1])
             
             return result
             
@@ -405,10 +489,32 @@ class FinancialDataAnalyst:
             with open(report_path, 'w', encoding='utf-8') as f:
                 f.write(report_content)
             
-            print(f"📄 Analysis report exported to: {report_path}")
+            print(f"✅ Report exported to report.md")
             
         except Exception as e:
-            print(f"⚠️ Warning: Could not export report to file: {str(e)}")
+            print(f"⚠️ Warning: Could not export report: {str(e)}")
+    
+    def _export_to_news(self, stock_symbol: str, news_result: str) -> None:
+        """
+        Export news research findings to news.md file.
+        
+        Args:
+            stock_symbol: Stock symbol analyzed
+            news_result: News research results from the agent
+        """
+        try:
+            with open("news.md", "w", encoding="utf-8") as f:
+                f.write(f"# {stock_symbol} - Recent News & Market Intelligence\n\n")
+                f.write(f"**Generated on:** {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                f.write("---\n\n")
+                f.write(str(news_result))
+                f.write("\n\n---\n\n")
+                f.write("*This report was generated using CrewAI with Brave Search for market intelligence.*\n")
+            
+            print(f"✅ News report exported to news.md")
+            
+        except Exception as e:
+            print(f"⚠️ Warning: Could not export news report: {str(e)}")
 
 def main():
     """

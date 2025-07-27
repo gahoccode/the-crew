@@ -46,7 +46,7 @@ class FinancialDataAnalyst:
         
         # Initialize LLM
         self.llm = LLM(
-            model="gpt-4o-mini",
+            model="gpt-4.1-nano",
             api_key=self.openai_api_key
         )
         

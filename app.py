@@ -60,17 +60,18 @@ class FinancialDataAnalyst:
         """
         return Agent(
             role="Senior Financial Data Analyst",
-            goal="Analyze Vietnamese stock market data and create insightful visualizations to help investors make informed decisions",
-            backstory="""You are a seasoned financial data analyst with expertise in Vietnamese stock market analysis.
-            You have deep knowledge of financial metrics, market trends, and data visualization techniques.
-            You can fetch real-time financial data using vnstock library and create compelling visualizations
-            using matplotlib, seaborn, and plotly. You always provide actionable insights based on your analysis.""",
+            goal="Analyze Vietnamese stock market data and provide comprehensive financial insights",
+            backstory="You are an expert financial analyst specializing in Vietnamese stock market data. "
+                     "You have deep knowledge of financial metrics, ratios, and market analysis. "
+                     "You excel at interpreting complex financial data and providing actionable insights.",
             tools=[self.code_interpreter],
             llm=self.llm,
             allow_code_execution=True,
             verbose=True,
             max_iter=2,
-            memory=True
+            memory=True,
+            reasoning=True,
+            max_reasoning_attempts=2
         )
     
     def _process_ratio_dataframe(self, ratios_df: pd.DataFrame) -> pd.DataFrame:

@@ -196,7 +196,6 @@ class FinancialDataAnalyst:
                 'balance_sheet': stock.finance.balance_sheet(period="year", lang="en", dropna=True),
                 'income_statement': stock.finance.income_statement(period="year", lang="en", dropna=True),
                 'financial_ratios': processed_ratios,
-                'financial_ratios_raw': raw_ratios,  # Keep raw version for reference
                 'dividend_schedule': company.dividends(),
                 'stock_symbol': stock_symbol
             }
@@ -262,15 +261,6 @@ class FinancialDataAnalyst:
         # Dividend Schedule DataFrame (use this exact data):
         dividend_data = {financial_data['dividend_schedule'].to_dict('records') if not financial_data['dividend_schedule'].empty else []}
         dividend_columns = {list(financial_data['dividend_schedule'].columns) if not financial_data['dividend_schedule'].empty else []}
-        
-        IMPORTANT: The financial_ratios DataFrame has been processed to have English column names:
-        
-        Categories and their metrics:
-        1. Capital_Structure: Debt_to_Equity, Total_Debt_to_Equity, Fixed_Assets_to_Equity, Equity_to_Charter_Capital
-        2. Efficiency: Asset_Turnover, Fixed_Asset_Turnover, Days_Sales_Outstanding, Days_Inventory_Outstanding, Days_Payable_Outstanding, Cash_Cycle, Inventory_Turnover
-        3. Profitability: EBIT_Margin_Pct, Gross_Margin_Pct, Net_Margin_Pct, ROE_Pct, ROIC_Pct, ROA_Pct, EBITDA_Billion_VND, EBIT_Billion_VND, Dividend_Yield_Pct
-        4. Liquidity: Current_Ratio, Cash_Ratio, Quick_Ratio, Interest_Coverage_Ratio, Financial_Leverage
-        5. Valuation: Market_Cap_Billion_VND, Shares_Outstanding_Million, PE_Ratio, PB_Ratio, PS_Ratio, P_CashFlow_Ratio, EPS_VND, BVPS_VND, EV_EBITDA_Ratio
         
         IMPORTANT: When using the Code Interpreter tool, you MUST specify the libraries_used parameter.
         

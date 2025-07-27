@@ -227,17 +227,41 @@ class FinancialDataAnalyst:
         if not financial_data:
             raise ValueError(f"Could not fetch financial data for {stock_symbol}")
         
-        # Create context with the fetched data
+        # Create context with the fetched data - INJECT REAL DATA
         data_context = f"""
-        You have access to the following financial data for {stock_symbol}:
+        IMPORTANT: Use the REAL data provided below for {stock_symbol}, NOT simulated/mock data.
         
-        Available DataFrames:
+        REAL FINANCIAL DATA FOR {stock_symbol}:
+        
+        Available DataFrames with ACTUAL data:
         - cash_flow: Cash flow statement data
         - balance_sheet: Balance sheet data  
         - income_statement: Income statement data
         - financial_ratios: Key financial ratios (PROCESSED with English column names)
         - financial_ratios_raw: Raw ratios with multi-index columns (for reference)
         - dividend_schedule: Dividend payment history
+        
+        ACTUAL DATA FOR PANDAS OPERATIONS:
+        
+        # Income Statement DataFrame (use this exact data):
+        income_statement_data = {financial_data['income_statement'].to_dict('records') if not financial_data['income_statement'].empty else []}
+        income_statement_columns = {list(financial_data['income_statement'].columns) if not financial_data['income_statement'].empty else []}
+        
+        # Balance Sheet DataFrame (use this exact data):
+        balance_sheet_data = {financial_data['balance_sheet'].to_dict('records') if not financial_data['balance_sheet'].empty else []}
+        balance_sheet_columns = {list(financial_data['balance_sheet'].columns) if not financial_data['balance_sheet'].empty else []}
+        
+        # Financial Ratios DataFrame (use this exact data):
+        financial_ratios_data = {financial_data['financial_ratios'].to_dict('records') if not financial_data['financial_ratios'].empty else []}
+        financial_ratios_columns = {list(financial_data['financial_ratios'].columns) if not financial_data['financial_ratios'].empty else []}
+        
+        # Cash Flow DataFrame (use this exact data):
+        cash_flow_data = {financial_data['cash_flow'].to_dict('records') if not financial_data['cash_flow'].empty else []}
+        cash_flow_columns = {list(financial_data['cash_flow'].columns) if not financial_data['cash_flow'].empty else []}
+        
+        # Dividend Schedule DataFrame (use this exact data):
+        dividend_data = {financial_data['dividend_schedule'].to_dict('records') if not financial_data['dividend_schedule'].empty else []}
+        dividend_columns = {list(financial_data['dividend_schedule'].columns) if not financial_data['dividend_schedule'].empty else []}
         
         IMPORTANT: The financial_ratios DataFrame has been processed to have English column names:
         
@@ -248,17 +272,45 @@ class FinancialDataAnalyst:
         4. Liquidity: Current_Ratio, Cash_Ratio, Quick_Ratio, Interest_Coverage_Ratio, Financial_Leverage
         5. Valuation: Market_Cap_Billion_VND, Shares_Outstanding_Million, PE_Ratio, PB_Ratio, PS_Ratio, P_CashFlow_Ratio, EPS_VND, BVPS_VND, EV_EBITDA_Ratio
         
-        Use the following code to access the data:
+        IMPORTANT: When using the Code Interpreter tool, you MUST specify the libraries_used parameter.
+        
+        Use the following code to recreate the ACTUAL DataFrames from the real data:
         ```python
+        # REQUIRED: Specify libraries_used when calling Code Interpreter
+        # libraries_used: ["pandas", "matplotlib", "seaborn", "plotly", "numpy"]
+        
         import pandas as pd
-        from vnstock import Vnstock
-        import matplotlib.pyplot as plt
-        import seaborn as sns
-        import plotly.express as px
-        import plotly.graph_objects as go
-        from plotly.subplots import make_subplots
+        import numpy as np
+        # NOTE: Visualization libraries may not be available in Docker environment
+        # Focus on data analysis and numerical insights instead
         import warnings
         warnings.filterwarnings("ignore")
+        
+        # RECREATE ACTUAL DATAFRAMES FROM REAL DATA
+        # Income Statement DataFrame
+        income_statement = pd.DataFrame(income_statement_data)
+        if income_statement_columns:
+            income_statement.columns = income_statement_columns
+        
+        # Balance Sheet DataFrame  
+        balance_sheet = pd.DataFrame(balance_sheet_data)
+        if balance_sheet_columns:
+            balance_sheet.columns = balance_sheet_columns
+            
+        # Financial Ratios DataFrame (with processed English column names)
+        financial_ratios = pd.DataFrame(financial_ratios_data)
+        if financial_ratios_columns:
+            financial_ratios.columns = financial_ratios_columns
+            
+        # Cash Flow DataFrame
+        cash_flow = pd.DataFrame(cash_flow_data)
+        if cash_flow_columns:
+            cash_flow.columns = cash_flow_columns
+            
+        # Dividend Schedule DataFrame
+        dividend_schedule = pd.DataFrame(dividend_data)
+        if dividend_columns:
+            dividend_schedule.columns = dividend_columns
         
         # Function to process ratios DataFrame (already done for you)
         def process_ratios_dataframe(ratios_df):
@@ -322,24 +374,30 @@ class FinancialDataAnalyst:
         
         task_descriptions = {
             "comprehensive": f"""
+            CRITICAL: Use ONLY the REAL data provided in the context below for {stock_symbol}. DO NOT create mock/simulated data.
+            
             Perform a comprehensive financial analysis of {stock_symbol} including:
             
-            1. **Data Overview**: Load and examine the structure of all financial statements
+            1. **Data Overview**: Analyze the ACTUAL financial statements data provided
             2. **Profitability Analysis**: 
-               - Revenue and profit trends over time
-               - Profit margins (gross, operating, net)
-               - ROE, ROA analysis
+               - Use REAL revenue and profit data from income statement
+               - Calculate actual profit margins from the data
+               - Use actual ROE, ROA from the financial ratios
             3. **Liquidity Analysis**:
-               - Current ratio, quick ratio trends
-               - Working capital analysis
+               - Use REAL current ratio, quick ratio from financial ratios
+               - Analyze actual working capital from balance sheet
             4. **Financial Health**:
-               - Debt-to-equity ratio
-               - Interest coverage ratio
-            5. **Visualizations**:
-               - Create at least 4 different charts showing key financial metrics
-               - Use matplotlib, seaborn, or plotly for professional visualizations
-               - Include trend analysis charts
-            6. **Investment Insights**: Provide actionable insights and recommendations
+               - Use REAL debt-to-equity ratio from the data
+               - Calculate actual interest coverage from income statement
+            5. **Data Analysis & Insights** (NO VISUALIZATIONS):
+               - Perform statistical analysis using pandas on the ACTUAL data
+               - Calculate trends, growth rates, and comparative metrics
+               - Create detailed data tables showing year-over-year changes
+               - Provide numerical trend descriptions instead of charts
+               - Focus on data-driven insights from the real Vietnamese stock data
+            6. **Investment Insights**: Base recommendations on ACTUAL financial performance
+            
+            REMEMBER: All analysis must be based on the REAL {stock_symbol} data provided in the context.
             
             {data_context}
             """,
@@ -410,12 +468,58 @@ class FinancialDataAnalyst:
             result = crew.kickoff()
             
             print(f"✅ Analysis completed for {stock_symbol}")
+            
+            # Export findings to report.md
+            self._export_to_report(stock_symbol, analysis_type, result)
+            
             return result
             
         except Exception as e:
             error_msg = f"❌ Error during analysis: {str(e)}"
             print(error_msg)
             return error_msg
+    
+    def _export_to_report(self, stock_symbol: str, analysis_type: str, result: str) -> None:
+        """
+        Export the analysis findings to a report.md file.
+        
+        Args:
+            stock_symbol: Stock symbol that was analyzed
+            analysis_type: Type of analysis performed
+            result: Analysis results from the CrewAI agent
+        """
+        try:
+            import datetime
+            
+            # Generate timestamp
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Create report content
+            report_content = f"""# Financial Analysis Report
+
+**Stock Symbol:** {stock_symbol}  
+**Analysis Type:** {analysis_type.title()}  
+**Generated:** {timestamp}  
+**Generated by:** CrewAI Financial Data Analyst
+
+---
+
+{result}
+
+---
+
+*This report was automatically generated by the CrewAI Financial Data Analyst agent using Vietnamese stock market data from vnstock.*
+"""
+            
+            # Write to report.md file
+            report_path = "report.md"
+            with open(report_path, 'w', encoding='utf-8') as f:
+                f.write(report_content)
+            
+            print(f"📄 Analysis report exported to: {report_path}")
+            
+        except Exception as e:
+            print(f"⚠️ Warning: Could not export report to file: {str(e)}")
 
 def main():
     """

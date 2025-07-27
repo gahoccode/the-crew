@@ -13,7 +13,7 @@ import pandas as pd
 from vnstock import Vnstock
 
 from crewai import Agent, Task, Crew, Process
-from crewai_tools import CodeInterpreterTool, BraveSearchTool
+from crewai_tools import CodeInterpreterTool, BraveSearchTool, FileWriterTool
 from crewai.llm import LLM
 
 # Suppress warnings
@@ -42,6 +42,7 @@ class FinancialDataAnalyst:
         # Initialize tools
         self.code_interpreter = CodeInterpreterTool()
         self.brave_search = BraveSearchTool(n_results=3)
+        self.file_writer = FileWriterTool()
         
         # Initialize LLM
         self.llm = LLM(
@@ -52,6 +53,7 @@ class FinancialDataAnalyst:
         # Create agents
         self.data_analyst_agent = self._create_data_analyst_agent()
         self.news_research_agent = self._create_news_research_agent()
+        self.reporting_agent = self._create_reporting_agent()
     
     def _create_data_analyst_agent(self) -> Agent:
         """
@@ -69,6 +71,7 @@ class FinancialDataAnalyst:
             tools=[self.code_interpreter],
             llm=self.llm,
             allow_code_execution=True,
+            allow_delegation=False,  # Specialist agent focused on financial analysis
             verbose=True,
             max_iter=2,
             memory=True,
@@ -91,6 +94,31 @@ class FinancialDataAnalyst:
                      "You focus on future plans, investment announcements, and executive insights that impact stock performance.",
             tools=[self.brave_search],
             llm=self.llm,
+            allow_delegation=False,  # Specialist agent focused on news research
+            verbose=True,
+            max_iter=2,
+            memory=True,
+            reasoning=True,
+            max_reasoning_attempts=2
+        )
+    
+    def _create_reporting_agent(self) -> Agent:
+        """
+        Create a reporting agent that synthesizes financial analysis and news research.
+        
+        Returns:
+            Agent: Configured reporting agent
+        """
+        return Agent(
+            role="Executive Report Writer",
+            goal="Synthesize financial analysis and market intelligence into comprehensive executive summaries",
+            backstory="You are an expert executive report writer specializing in financial markets and corporate analysis. "
+                     "You excel at combining quantitative financial data with qualitative market intelligence to create "
+                     "compelling executive summaries. You write clear, actionable reports that help executives make "
+                     "informed investment decisions based on both financial metrics and market sentiment.",
+            tools=[self.file_writer],
+            llm=self.llm,
+            allow_delegation=True,  # Lead agent that can coordinate with other agents if needed
             verbose=True,
             max_iter=2,
             memory=True,
@@ -411,9 +439,89 @@ class FinancialDataAnalyst:
             agent=self.news_research_agent
         )
     
+    def create_executive_summary_task(self, stock_symbol: str, analysis_result: str, news_result: str) -> Task:
+        """
+        Create an executive summary task that synthesizes financial analysis and news research.
+        
+        Args:
+            stock_symbol: Stock symbol analyzed
+            analysis_result: Results from financial analysis agent
+            news_result: Results from news research agent
+            
+        Returns:
+            Task: Configured executive summary task
+        """
+        # Get company name mapping
+        company_names = {
+            "REE": "Refrigeration Electrical Engineering Corporation",
+            "VIC": "Vingroup Joint Stock Company",
+            "VHM": "Vinhomes Joint Stock Company",
+            "VCB": "Vietcombank",
+            "HPG": "Hoa Phat Group"
+        }
+        
+        company_name = company_names.get(stock_symbol, stock_symbol)
+        
+        task_description = f"""
+        Create a comprehensive executive summary for {company_name} ({stock_symbol}) by synthesizing the following information:
+        
+        **FINANCIAL ANALYSIS DATA:**
+        {analysis_result}
+        
+        **NEWS & MARKET INTELLIGENCE:**
+        {news_result}
+        
+        **EXECUTIVE SUMMARY REQUIREMENTS:**
+        
+        1. **Executive Overview** (2-3 paragraphs):
+           - Brief company introduction and current market position
+           - Key financial highlights from the analysis
+           - Major recent developments from news research
+        
+        2. **Financial Performance Analysis**:
+           - Summarize key financial metrics (profitability, liquidity, efficiency)
+           - Highlight trends in revenue, margins, and returns
+           - Compare performance against industry standards where possible
+        
+        3. **Strategic Developments & Market Intelligence**:
+           - Synthesize recent news about future plans and strategic initiatives
+           - Analyze management commentary and outlook
+           - Assess recent investments and their potential impact
+        
+        4. **Investment Thesis**:
+           - Combine quantitative analysis with qualitative insights
+           - Identify key strengths and potential risks
+           - Provide balanced assessment of growth prospects
+        
+        5. **Key Recommendations**:
+           - Investment recommendation (Buy/Hold/Sell) with rationale
+           - Key factors to monitor going forward
+           - Risk considerations and mitigation strategies
+        
+        **FORMATTING REQUIREMENTS:**
+        - Use proper Markdown formatting with headers, bullet points, and emphasis
+        - Include specific numbers and dates where relevant
+        - Keep the summary concise but comprehensive (3-4 pages)
+        - Use professional, executive-level language
+        - Ensure all claims are supported by the provided data
+        
+        **FILE OUTPUT:**
+        Use the FileWriterTool to save the executive summary as 'executive_summary.md'
+        
+        The summary should provide executives with a clear, actionable overview that combines 
+        both quantitative financial analysis and qualitative market intelligence.
+        """
+        
+        return Task(
+            description=task_description,
+            expected_output="Comprehensive executive summary in markdown format saved to executive_summary.md",
+            agent=self.reporting_agent,
+            markdown=True
+        )
+    
     def run_analysis(self, stock_symbol: str, analysis_type: str = "comprehensive") -> str:
         """
-        Run the financial analysis and news research for a given stock.
+        Run the complete three-stage analysis: financial data, news research, and executive summary.
         
         Args:
             stock_symbol: Stock symbol to analyze
@@ -423,12 +531,12 @@ class FinancialDataAnalyst:
             str: Analysis results
         """
         try:
-            # Create tasks
+            # Stage 1 & 2: Run financial analysis and news research
             analysis_task = self.create_analysis_task(stock_symbol, analysis_type)
             news_task = self.create_news_research_task(stock_symbol)
             
-            # Create and run the crew with both agents
-            crew = Crew(
+            # Create and run the first crew with data and news agents
+            data_crew = Crew(
                 agents=[self.data_analyst_agent, self.news_research_agent],
                 tasks=[analysis_task, news_task],
                 process=Process.sequential,
@@ -436,16 +544,39 @@ class FinancialDataAnalyst:
                 memory=True
             )
             
-            print(f"🚀 Starting financial analysis and news research for {stock_symbol}...")
-            result = crew.kickoff()
+            print(f"🚀 Stage 1-2: Starting financial analysis and news research for {stock_symbol}...")
+            data_result = data_crew.kickoff()
             
-            print(f"✅ Analysis and news research completed for {stock_symbol}")
+            print(f"✅ Financial analysis and news research completed for {stock_symbol}")
+            
+            # Extract results from both tasks
+            analysis_output = str(data_result.tasks_output[0])
+            news_output = str(data_result.tasks_output[1])
+            
+            # Stage 3: Create executive summary
+            summary_task = self.create_executive_summary_task(stock_symbol, analysis_output, news_output)
+            
+            # Create and run the reporting crew
+            reporting_crew = Crew(
+                agents=[self.reporting_agent],
+                tasks=[summary_task],
+                process=Process.sequential,
+                verbose=True,
+                memory=True
+            )
+            
+            print(f"🚀 Stage 3: Creating executive summary for {stock_symbol}...")
+            summary_result = reporting_crew.kickoff()
+            
+            print(f"✅ Executive summary completed for {stock_symbol}")
             
             # Export findings to separate files
-            self._export_to_report(stock_symbol, analysis_type, result.tasks_output[0])
-            self._export_to_news(stock_symbol, result.tasks_output[1])
+            self._export_to_report(stock_symbol, analysis_type, analysis_output)
+            self._export_to_news(stock_symbol, news_output)
             
-            return result
+            print(f"📄 All reports exported: report.md, news.md, executive_summary.md")
+            
+            return str(summary_result)
             
         except Exception as e:
             error_msg = f"❌ Error during analysis: {str(e)}"

@@ -69,7 +69,7 @@ class FinancialDataAnalyst:
             llm=self.llm,
             allow_code_execution=True,
             verbose=True,
-            max_iter=3,
+            max_iter=2,
             memory=True
         )
     
@@ -228,29 +228,26 @@ class FinancialDataAnalyst:
         
         # Create context with the fetched data - INJECT REAL DATA
         data_context = f"""
-        IMPORTANT: Use the REAL data provided below for {stock_symbol}, NOT simulated/mock data.
+        IMPORTANT: Use the REAL data provided below for {stock_symbol}
+
         
-        REAL FINANCIAL DATA FOR {stock_symbol}:
-        
-        Available DataFrames with ACTUAL data:
-        - cash_flow: Cash flow statement data
-        - balance_sheet: Balance sheet data  
-        - income_statement: Income statement data
-        - financial_ratios: Key financial ratios (PROCESSED with English column names)
-        - financial_ratios_raw: Raw ratios with multi-index columns (for reference)
-        - dividend_schedule: Dividend payment history
-        
-        ACTUAL DATA FOR PANDAS OPERATIONS:
+        FETCHED DATA FOR PANDAS OPERATIONS:
         
         # Income Statement DataFrame (use this exact data):
         income_statement_data = {financial_data['income_statement'].to_dict('records') if not financial_data['income_statement'].empty else []}
         income_statement_columns = {list(financial_data['income_statement'].columns) if not financial_data['income_statement'].empty else []}
         
-        # Balance Sheet DataFrame (use this exact data):
+        # Balance Sheet DataFrame (use this to query key financial metrics):
         balance_sheet_data = {financial_data['balance_sheet'].to_dict('records') if not financial_data['balance_sheet'].empty else []}
         balance_sheet_columns = {list(financial_data['balance_sheet'].columns) if not financial_data['balance_sheet'].empty else []}
         
         # Financial Ratios DataFrame (use this exact data):
+        # Available column names (format: Category_Metric):
+        # - Capital_Structure_Debt_to_Equity, Capital_Structure_Total_Debt_to_Equity, Capital_Structure_Fixed_Assets_to_Equity, Capital_Structure_Equity_to_Charter_Capital
+        # - Efficiency_Asset_Turnover, Efficiency_Fixed_Asset_Turnover, Efficiency_Days_Sales_Outstanding, Efficiency_Days_Inventory_Outstanding, Efficiency_Days_Payable_Outstanding, Efficiency_Cash_Cycle, Efficiency_Inventory_Turnover
+        # - Profitability_EBIT_Margin_Pct, Profitability_Gross_Margin_Pct, Profitability_Net_Margin_Pct, Profitability_ROE_Pct, Profitability_ROIC_Pct, Profitability_ROA_Pct, Profitability_EBITDA_Billion_VND, Profitability_EBIT_Billion_VND, Profitability_Dividend_Yield_Pct
+        # - Liquidity_Current_Ratio, Liquidity_Cash_Ratio, Liquidity_Quick_Ratio, Liquidity_Interest_Coverage_Ratio, Liquidity_Financial_Leverage
+        # - Valuation_Market_Cap_Billion_VND, Valuation_Shares_Outstanding_Million, Valuation_PE_Ratio, Valuation_PB_Ratio, Valuation_PS_Ratio, Valuation_P_CashFlow_Ratio, Valuation_EPS_VND, Valuation_BVPS_VND, Valuation_EV_EBITDA_Ratio
         financial_ratios_data = {financial_data['financial_ratios'].to_dict('records') if not financial_data['financial_ratios'].empty else []}
         financial_ratios_columns = {list(financial_data['financial_ratios'].columns) if not financial_data['financial_ratios'].empty else []}
         
@@ -261,105 +258,6 @@ class FinancialDataAnalyst:
         # Dividend Schedule DataFrame (use this exact data):
         dividend_data = {financial_data['dividend_schedule'].to_dict('records') if not financial_data['dividend_schedule'].empty else []}
         dividend_columns = {list(financial_data['dividend_schedule'].columns) if not financial_data['dividend_schedule'].empty else []}
-        
-        IMPORTANT: When using the Code Interpreter tool, you MUST specify the libraries_used parameter.
-        
-        Use the following code to recreate the ACTUAL DataFrames from the real data:
-        ```python
-        # REQUIRED: Specify libraries_used when calling Code Interpreter
-        # libraries_used: ["pandas", "matplotlib", "seaborn", "plotly", "numpy"]
-        
-        import pandas as pd
-        import numpy as np
-        # NOTE: Visualization libraries may not be available in Docker environment
-        # Focus on data analysis and numerical insights instead
-        import warnings
-        warnings.filterwarnings("ignore")
-        
-        # RECREATE ACTUAL DATAFRAMES FROM REAL DATA
-        # Income Statement DataFrame
-        income_statement = pd.DataFrame(income_statement_data)
-        if income_statement_columns:
-            income_statement.columns = income_statement_columns
-        
-        # Balance Sheet DataFrame  
-        balance_sheet = pd.DataFrame(balance_sheet_data)
-        if balance_sheet_columns:
-            balance_sheet.columns = balance_sheet_columns
-            
-        # Financial Ratios DataFrame (with processed English column names)
-        financial_ratios = pd.DataFrame(financial_ratios_data)
-        if financial_ratios_columns:
-            financial_ratios.columns = financial_ratios_columns
-            
-        # Cash Flow DataFrame
-        cash_flow = pd.DataFrame(cash_flow_data)
-        if cash_flow_columns:
-            cash_flow.columns = cash_flow_columns
-            
-        # Dividend Schedule DataFrame
-        dividend_schedule = pd.DataFrame(dividend_data)
-        if dividend_columns:
-            dividend_schedule.columns = dividend_columns
-        
-        # Function to process ratios DataFrame (already done for you)
-        def process_ratios_dataframe(ratios_df):
-            if ratios_df.empty or not isinstance(ratios_df.columns, pd.MultiIndex):
-                return ratios_df
-            
-            processed_df = ratios_df.copy()
-            new_columns = []
-            
-            category_mapping = {{
-                'Chỉ tiêu cơ cấu nguồn vốn': 'Capital_Structure',
-                'Chỉ tiêu hiệu quả hoạt động': 'Efficiency', 
-                'Chỉ tiêu khả năng sinh lợi': 'Profitability',
-                'Chỉ tiêu thanh khoản': 'Liquidity',
-                'Chỉ tiêu định giá': 'Valuation'
-            }}
-            
-            for col in processed_df.columns:
-                if col[0] == 'Meta':
-                    new_columns.append(col[1])
-                else:
-                    category = category_mapping.get(col[0], col[0])
-                    new_columns.append(f"{{category}}_{{col[1]}}")
-            
-            processed_df.columns = new_columns
-            return processed_df
-        
-        # Fetch data for {stock_symbol}
-        stock = Vnstock().stock(symbol="{stock_symbol}", source="VCI")
-        company = Vnstock().stock(symbol="{stock_symbol}", source="TCBS").company
-        
-        cash_flow = stock.finance.cash_flow(period="year")
-        balance_sheet = stock.finance.balance_sheet(period="year", lang="en", dropna=True)
-        income_statement = stock.finance.income_statement(period="year", lang="en", dropna=True)
-        
-        # Get raw ratios and process them
-        financial_ratios_raw = stock.finance.ratio(period="year", lang="en", dropna=True)
-        financial_ratios = process_ratios_dataframe(financial_ratios_raw)
-        
-        dividend_schedule = company.dividends()
-        
-        print(f"Data loaded for {stock_symbol}")
-        print(f"Income Statement shape: {{income_statement.shape}}")
-        print(f"Balance Sheet shape: {{balance_sheet.shape}}")
-        print(f"Cash Flow shape: {{cash_flow.shape}}")
-        print(f"Financial Ratios shape: {{financial_ratios.shape}}")
-        print(f"Financial Ratios columns: {{list(financial_ratios.columns)}}")
-        
-        # Example: Access specific ratios
-        if not financial_ratios.empty:
-            print("\nKey Financial Ratios Available:")
-            profitability_cols = [col for col in financial_ratios.columns if 'Profitability' in col]
-            liquidity_cols = [col for col in financial_ratios.columns if 'Liquidity' in col]
-            valuation_cols = [col for col in financial_ratios.columns if 'Valuation' in col]
-            
-            print(f"Profitability metrics: {{profitability_cols}}")
-            print(f"Liquidity metrics: {{liquidity_cols}}")
-            print(f"Valuation metrics: {{valuation_cols}}")
-        ```
         """
         
         task_descriptions = {
@@ -379,11 +277,11 @@ class FinancialDataAnalyst:
             4. **Financial Health**:
                - Use REAL debt-to-equity ratio from the data
                - Calculate actual interest coverage from income statement
-            5. **Data Analysis & Insights** (NO VISUALIZATIONS):
+            5. **Data Analysis & Insights**:
                - Perform statistical analysis using pandas on the ACTUAL data
                - Calculate trends, growth rates, and comparative metrics
                - Create detailed data tables showing year-over-year changes
-               - Provide numerical trend descriptions instead of charts
+               - Provide numerical trend descriptions and analysis
                - Focus on data-driven insights from the real Vietnamese stock data
             6. **Investment Insights**: Base recommendations on ACTUAL financial performance
             
@@ -393,25 +291,25 @@ class FinancialDataAnalyst:
             """,
             
             "profitability": f"""
-            Focus on profitability analysis of {stock_symbol}:
+            Focus on profitability analysis of {stock_symbol} using REAL data:
             
-            1. Analyze revenue growth trends
-            2. Calculate and visualize profit margins over time
-            3. Compare ROE and ROA trends
-            4. Create visualizations showing profitability metrics
-            5. Provide insights on profitability trends
+            1. Analyze revenue growth trends using actual data
+            2. Calculate profit margins over time from real financial statements
+            3. Compare ROE and ROA trends using actual ratios
+            4. Perform statistical analysis on profitability metrics
+            5. Provide data-driven insights on profitability trends
             
             {data_context}
             """,
             
-            "visualization": f"""
-            Create comprehensive visualizations for {stock_symbol}:
+            "liquidity": f"""
+            Focus on liquidity analysis of {stock_symbol} using REAL data:
             
-            1. Revenue and profit trend charts
-            2. Financial ratios comparison charts
-            3. Balance sheet composition analysis
-            4. Cash flow analysis charts
-            5. Interactive dashboards using plotly
+            1. Analyze current and quick ratios from actual financial data
+            2. Calculate working capital trends over time
+            3. Assess cash flow patterns using real cash flow statements
+            4. Evaluate short-term financial health indicators
+            5. Provide insights on liquidity position and trends
             
             {data_context}
             """
